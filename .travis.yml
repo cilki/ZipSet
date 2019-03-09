@@ -1,0 +1,7 @@
+language: java
+
+script:
+  - ./gradlew build --stacktrace --scan -s
+
+jdk:
+  - openjdk11
