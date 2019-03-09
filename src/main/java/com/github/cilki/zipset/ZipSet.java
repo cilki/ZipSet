@@ -237,8 +237,8 @@ public class ZipSet {
 	/**
 	 * Add the given ZipSet to the ZipSet.
 	 * 
-	 * @param entry    The absolute entry path
-	 * @param resource The ZipSet to add
+	 * @param entry The absolute entry path
+	 * @param zip   The ZipSet to add
 	 * @return {@code this}
 	 */
 	public ZipSet add(EntryPath entry, ZipSet zip) {
@@ -299,7 +299,7 @@ public class ZipSet {
 	/**
 	 * Write the final zip to the given file.
 	 * 
-	 * @param out The file that will receive the zip
+	 * @param output The file that will receive the zip
 	 * @throws IOException
 	 */
 	public void build(Path output) throws IOException {

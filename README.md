@@ -1,3 +1,6 @@
+[![Maven central](https://maven-badges.herokuapp.com/maven-central/com.github.cilki/zipset/badge.svg?)](https://search.maven.org/search?q=com.github.cilki)
+[![Build Status](https://travis-ci.org/cilki/ZipSet.svg?branch=master)](https://travis-ci.org/cilki/ZipSet)
+
 **ZipSet** is a small zero-dependency Java library for building zip files lazily. It lets you think of a zip file like a `Set` that can be manipulated with standard set operations. ZipSet doesn't do any I/O until `build` is invoked, so all modifications are applied in a single step without the need for a temporary directory. Even the beautiful `jdk.zipfs` module requires changes to nested zip files be made via a temporary file. 
 
 #### Primary Usage

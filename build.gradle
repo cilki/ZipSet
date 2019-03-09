@@ -1,6 +1,14 @@
 plugins {
+	id 'com.gradle.build-scan' version '2.2.1'
 	id 'eclipse'
-	id 'java'
+	id 'java-library'
+	id 'maven-publish'
+	id 'signing'
+}
+
+buildScan {
+	termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+	termsOfServiceAgree = 'yes'
 }
 
 eclipse {
@@ -26,4 +34,78 @@ dependencies {
 
 test {
 	useJUnitPlatform()
+}
+
+task sourcesJar(type: Jar) {
+	from sourceSets.main.allJava
+	archiveClassifier = 'sources'
+}
+
+task javadocJar(type: Jar) {
+	from javadoc
+	archiveClassifier = 'javadoc'
+}
+
+publishing {
+	publications {
+		mavenJava(MavenPublication) {
+			groupId = 'com.github.cilki'
+			artifactId = 'zipset'
+			version = '1.0.0'
+
+			from components.java
+			artifact sourcesJar
+			artifact javadocJar
+			versionMapping {
+				usage('java-api') {
+					fromResolutionOf('runtimeClasspath')
+				}
+				usage('java-runtime') {
+					fromResolutionResult()
+				}
+			}
+			pom {
+				name = 'ZipSet'
+				description = 'A Java library for building zip files lazily'
+				url = 'https://github.com/cilki/ZipSet'
+				licenses {
+					license {
+						name = 'The Apache License, Version 2.0'
+						url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+					}
+				}
+				developers {
+					developer {
+						id = 'cilki'
+						name = 'Tyler Cook'
+						email = 'tcc@sandpolis.com'
+					}
+				}
+				scm {
+					connection = 'scm:git:git://github.com/cilki/ZipSet.git'
+					developerConnection = 'scm:git:ssh://git@github.com/cilki/ZipSet.git'
+					url = 'https://github.com/cilki/ZipSet'
+				}
+			}
+		}
+	}
+	repositories {
+		maven {
+			url = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
+			credentials {
+				username sonatypeUsername
+				password sonatypePassword
+			}
+		}
+	}
+}
+
+signing {
+	sign publishing.publications.mavenJava
+}
+
+javadoc {
+	if(JavaVersion.current().isJava9Compatible()) {
+		options.addBooleanOption('html5', true)
+	}
 }
