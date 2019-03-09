@@ -1,0 +1,29 @@
+plugins {
+	id 'eclipse'
+	id 'java'
+}
+
+eclipse {
+	project {
+		name = 'ZipSet'
+		comment = 'A small library for building incremental zip files'
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.4.0'
+
+	// https://github.com/zeroturnaround/zt-zip
+	testImplementation 'org.zeroturnaround:zt-zip:1.13'
+
+	// https://github.com/qos-ch/slf4j
+	implementation 'org.slf4j:slf4j-api:1.7.26'
+}
+
+test {
+	useJUnitPlatform()
+}
