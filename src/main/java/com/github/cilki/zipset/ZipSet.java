@@ -339,7 +339,9 @@ public class ZipSet {
 						// If content contains the entry, it is either overwriting an entry from the
 						// source file or explicitly excluding it
 						if (!content.containsKey(entry.getName())) {
+							zip.putNextEntry(entry);
 							zipIn.transferTo(zip);
+							zip.closeEntry();
 						}
 					}
 				}
