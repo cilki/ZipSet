@@ -1,6 +1,7 @@
 plugins {
 	id 'com.gradle.build-scan' version '2.2.1'
 	id 'eclipse'
+	id 'jacoco'
 	id 'java-library'
 	id 'maven-publish'
 	id 'signing'
@@ -35,6 +36,15 @@ dependencies {
 test {
 	useJUnitPlatform()
 }
+
+jacocoTestReport {
+	reports {
+		xml.enabled true
+		html.enabled false
+	}
+}
+
+check.dependsOn jacocoTestReport
 
 task sourcesJar(type: Jar) {
 	from sourceSets.main.allJava
