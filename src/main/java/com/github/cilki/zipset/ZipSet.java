@@ -362,7 +362,11 @@ public class ZipSet {
 					}
 				} else if (resource instanceof ZipSet) {
 					zip.putNextEntry(newFileEntry(entry.getKey()));
-					((ZipSet) resource).build(zip);
+					// TODO pass stream directly with the following call rather than building an
+					// unnecessary byte array. The problem is that closing a nested ZipOutputStream
+					// also closes all parent streams
+					// ((ZipSet) resource).build(zip);
+					zip.write(((ZipSet) resource).build());
 					zip.closeEntry();
 				} else if (resource instanceof Path)
 					writePath(zip, (Path) resource, entry.getKey());
