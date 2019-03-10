@@ -254,6 +254,18 @@ public class ZipSet {
 	 * @param entry The absolute entry to remove
 	 * @return {@code this}
 	 */
+	public ZipSet sub(String entry) {
+		Objects.requireNonNull(entry);
+
+		return sub(EntryPath.parse(entry));
+	}
+
+	/**
+	 * Subtract the given entry from the ZipSet.
+	 * 
+	 * @param entry The absolute entry to remove
+	 * @return {@code this}
+	 */
 	public ZipSet sub(EntryPath entry) {
 		Objects.requireNonNull(entry);
 
