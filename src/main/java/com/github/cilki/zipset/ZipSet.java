@@ -19,15 +19,17 @@ package com.github.cilki.zipset;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -66,14 +68,16 @@ import java.util.zip.ZipOutputStream;
  * 
  * @author cilki
  */
-public class ZipSet {
+public final class ZipSet implements Serializable {
+
+	private static final long serialVersionUID = 891843709925731616L;
 
 	/**
 	 * Represents an absolute zip entry path that could be nested.
 	 * 
 	 * @author cilki
 	 */
-	public static class EntryPath {
+	public static final class EntryPath {
 
 		/**
 		 * The path elements.
@@ -101,9 +105,15 @@ public class ZipSet {
 		}
 
 		private EntryPath(String... path) {
-			this.path = Objects.requireNonNull(path);
+			Objects.requireNonNull(path);
+
 			if (path.length < 1)
-				throw new IllegalArgumentException();
+				throw new IllegalArgumentException("An EntryPath cannot be empty");
+			for (int i = 0; i < path.length; i++)
+				if (path[i].startsWith("/"))
+					path[i] = path[i].substring(1);
+
+			this.path = path;
 		}
 
 		/**
@@ -138,14 +148,14 @@ public class ZipSet {
 	}
 
 	/**
+	 * An optional zip file that acts like the base of the ZipSet.
+	 */
+	private Path source;
+
+	/**
 	 * Zip entries specified by the user.
 	 */
 	private Map<String, Object> content;
-
-	/**
-	 * An optional zip file that
-	 */
-	private Path source;
 
 	/**
 	 * Build a new empty {@link ZipSet}.
@@ -280,7 +290,14 @@ public class ZipSet {
 	 * @return {@code this}
 	 */
 	private ZipSet addEntry(EntryPath entry, Object o) {
-		content.put(entry.getUpperPath(), entry.isNested() ? new ZipSet().addEntry(entry.toLowerPath(), o) : o);
+		if (entry.isNested()) {
+			if (!content.containsKey(entry.getUpperPath()))
+				content.put(entry.getUpperPath(), new ZipSet());
+			((ZipSet) content.get(entry.getUpperPath())).addEntry(entry.toLowerPath(), o);
+		} else {
+			content.put(entry.getUpperPath(), o);
+		}
+
 		return this;
 	}
 
@@ -292,6 +309,16 @@ public class ZipSet {
 	 * @return A new ZipSet
 	 */
 	public ZipSet intersect(ZipSet zip) {
+		throw new RuntimeException("Not implemented");
+	}
+
+	/**
+	 * Build a new ZipSet containing the union of {@code this} and the given ZipSet.
+	 * 
+	 * @param zip The other ZipSet
+	 * @return A new ZipSet
+	 */
+	public ZipSet union(ZipSet zip) {
 		throw new RuntimeException("Not implemented");
 	}
 
@@ -323,56 +350,96 @@ public class ZipSet {
 	}
 
 	/**
-	 * Write the final zip to the given {@link OutputStream}.
+	 * Write the final zip to the given {@link OutputStream}. This method does not
+	 * mutate the ZipSet, so successive calls should produce the same results. This
+	 * method does not close the {@link OutputStream} so that it can be called
+	 * recursively.
 	 * 
 	 * @param out The stream that will receive the zip
 	 * @throws IOException
 	 */
 	public void build(OutputStream out) throws IOException {
-		try (var zip = new ZipOutputStream(out)) {
+		var zipOut = new ZipOutputStream(out);
 
-			// Copy the source file if one was specified
-			if (source != null) {
-				try (var zipIn = new ZipInputStream(Files.newInputStream(source))) {
-					ZipEntry entry;
-					while ((entry = zipIn.getNextEntry()) != null) {
-						// If content contains the entry, it is either overwriting an entry from the
-						// source file or explicitly excluding it
-						if (!content.containsKey(entry.getName())) {
-							zip.putNextEntry(entry);
-							zipIn.transferTo(zip);
-							zip.closeEntry();
-						}
-					}
-				}
+		try (var zipIn = new ZipInputStream(
+				// Use either the source file or an empty stream
+				source != null ? Files.newInputStream(source) : InputStream.nullInputStream())) {
+			build(zipIn, zipOut);
+
+		} finally {
+			zipOut.finish();
+		}
+	}
+
+	/**
+	 * Write the given {@link ZipInputStream} to the given {@link ZipOutputStream}
+	 * along with any changes in {@link #content}.
+	 * 
+	 * @param zipIn  The input zip
+	 * @param zipOut The output zip
+	 * @throws IOException
+	 */
+	private void build(ZipInputStream zipIn, ZipOutputStream zipOut) throws IOException {
+		Stream<String> toProcess = content.keySet().stream();
+
+		ZipEntry entry;
+		while ((entry = zipIn.getNextEntry()) != null) {
+			final String name = entry.getName();
+			if (!content.containsKey(name)) {
+				// There is no corresponding entry in content; just copy the entry exactly
+				zipOut.putNextEntry(entry);
+				zipIn.transferTo(zipOut);
+				zipOut.closeEntry();
+			} else if (content.containsKey(name) && content.get(name) instanceof ZipSet) {
+				// There is a corresponding ZipSet that should be merged with the entry
+				zipOut.putNextEntry(new ZipEntry(name));
+				((ZipSet) content.get(name)).build(new ZipInputStream(zipIn), new ZipOutputStream(zipOut));
+				zipOut.closeEntry();
+
+				// Don't visit this entry again
+				toProcess = toProcess.filter(e -> !e.equals(name));
+			} else if (content.containsKey(name) && content.get(name) != null) {
+				// Overwrite the source entry
+				writeObject(zipOut, name, content.get(name));
+
+				// Don't visit this entry again
+				toProcess = toProcess.filter(e -> !e.equals(name));
+			} else {
+				// The source entry is explicitly excluded
+				continue;
 			}
+		}
 
-			// Copy the rest of the entries
-			for (Entry<String, Object> entry : content.entrySet()) {
-				Object resource = entry.getValue();
-				if (resource == null)
-					continue;
+		// Copy the rest of the entries
+		for (String e : toProcess.collect(Collectors.toList())) {
+			writeObject(zipOut, e, content.get(e));
+		}
+	}
 
-				if (resource instanceof byte[]) {
-					if (entry.getKey().endsWith("/")) {
-						zip.putNextEntry(newDirectoryEntry(entry.getKey()));
-						zip.closeEntry();
-					} else {
-						zip.putNextEntry(newFileEntry(entry.getKey()));
-						zip.write((byte[]) resource);
-						zip.closeEntry();
-					}
-				} else if (resource instanceof ZipSet) {
-					zip.putNextEntry(newFileEntry(entry.getKey()));
-					// TODO pass stream directly with the following call rather than building an
-					// unnecessary byte array. The problem is that closing a nested ZipOutputStream
-					// also closes all parent streams
-					// ((ZipSet) resource).build(zip);
-					zip.write(((ZipSet) resource).build());
-					zip.closeEntry();
-				} else if (resource instanceof Path)
-					writePath(zip, (Path) resource, entry.getKey());
+	/**
+	 * Write the given object to the given zip stream.
+	 * 
+	 * @param zip  The zip to receive the files
+	 * @param name The name of the object
+	 * @param path The object to write
+	 * @throws IOException
+	 */
+	private void writeObject(ZipOutputStream zipOut, String name, Object o) throws IOException {
+		if (o instanceof byte[]) {
+			if (name.endsWith("/")) {
+				zipOut.putNextEntry(newDirectoryEntry(name));
+				zipOut.closeEntry();
+			} else {
+				zipOut.putNextEntry(newFileEntry(name));
+				zipOut.write((byte[]) o);
+				zipOut.closeEntry();
 			}
+		} else if (o instanceof ZipSet) {
+			zipOut.putNextEntry(newFileEntry(name));
+			((ZipSet) o).build(zipOut);
+			zipOut.closeEntry();
+		} else if (o instanceof Path) {
+			writePath(zipOut, name, (Path) o);
 		}
 	}
 
@@ -380,16 +447,16 @@ public class ZipSet {
 	 * Write the given file or directory to the given zip stream.
 	 * 
 	 * @param zip  The zip to receive the files
-	 * @param path The file or directory to write
 	 * @param name The name of the file or directory
+	 * @param path The file or directory to write
 	 * @throws IOException
 	 */
-	private void writePath(ZipOutputStream zip, Path path, String name) throws IOException {
+	private void writePath(ZipOutputStream zip, String name, Path path) throws IOException {
 		if (Files.isDirectory(path)) {
 			zip.putNextEntry(newDirectoryEntry(name));
 			zip.closeEntry();
 			for (Path p : Files.list(path).collect(Collectors.toList())) {
-				writePath(zip, p, name + "/" + p.getFileName().toString());
+				writePath(zip, name + "/" + p.getFileName().toString(), p);
 			}
 		} else {
 			zip.putNextEntry(newFileEntry(name));
