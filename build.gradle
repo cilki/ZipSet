@@ -1,15 +1,9 @@
 plugins {
-	id 'com.gradle.build-scan' version '2.2.1'
 	id 'eclipse'
 	id 'jacoco'
 	id 'java-library'
 	id 'maven-publish'
 	id 'signing'
-}
-
-buildScan {
-	termsOfServiceUrl = 'https://gradle.com/terms-of-service'
-	termsOfServiceAgree = 'yes'
 }
 
 eclipse {

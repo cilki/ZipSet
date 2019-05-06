@@ -2,13 +2,7 @@ language: java
 sudo: false
 
 script:
-  - ./gradlew build --stacktrace --scan -s
+  - ./gradlew test
 
 jdk:
   - openjdk11
-
-before_install:
-  - pip install --user codecov
-
-after_success:
-  - codecov
