@@ -70,19 +70,10 @@ import java.util.zip.ZipOutputStream;
  */
 public final class ZipSet implements Serializable {
 
-	private static final long serialVersionUID = 891843709925731616L;
-
 	/**
 	 * Represents an absolute zip entry path that could be nested.
-	 * 
-	 * @author cilki
 	 */
 	public static final class EntryPath {
-
-		/**
-		 * The path elements.
-		 */
-		private String[] path;
 
 		/**
 		 * Build an {@link EntryPath} from the given path elements.
@@ -104,6 +95,11 @@ public final class ZipSet implements Serializable {
 			return get(path.split("!"));
 		}
 
+		/**
+		 * The path elements.
+		 */
+		private String[] path;
+
 		private EntryPath(String... path) {
 			Objects.requireNonNull(path);
 
@@ -114,6 +110,15 @@ public final class ZipSet implements Serializable {
 					path[i] = path[i].substring(1);
 
 			this.path = path;
+		}
+
+		/**
+		 * Get the uppermost element of the path.
+		 * 
+		 * @return The first path element
+		 */
+		public String getUpperPath() {
+			return path[0];
 		}
 
 		/**
@@ -136,26 +141,43 @@ public final class ZipSet implements Serializable {
 				return new EntryPath(Arrays.copyOfRange(path, 1, path.length));
 			return this;
 		}
+	}
 
-		/**
-		 * Get the uppermost element of the path.
-		 * 
-		 * @return The first path element
-		 */
-		public String getUpperPath() {
-			return path[0];
-		}
+	private static final long serialVersionUID = 891843709925731616L;
+
+	/**
+	 * Build a new {@link ZipEntry} for a directory.
+	 * 
+	 * @param name The absolute directory path
+	 * @return A ZipEntry for the path
+	 */
+	private static ZipEntry newDirectoryEntry(String name) {
+		if (name.lastIndexOf('/') == name.length() - 1)
+			return new ZipEntry(name);
+		return new ZipEntry(name + "/");
 	}
 
 	/**
-	 * An optional zip file that acts like the base of the ZipSet.
+	 * Build a new {@link ZipEntry} for a file.
+	 * 
+	 * @param name The absolute file path
+	 * @return A ZipEntry for the path
 	 */
-	private Path source;
+	private static ZipEntry newFileEntry(String name) {
+		if (name.lastIndexOf('/') == name.length() - 1)
+			return new ZipEntry(name.substring(0, name.length() - 1));
+		return new ZipEntry(name);
+	}
 
 	/**
 	 * Zip entries specified by the user.
 	 */
 	private Map<String, Object> content;
+
+	/**
+	 * An optional zip file that acts like the base of the ZipSet.
+	 */
+	private Path source;
 
 	/**
 	 * Build a new empty {@link ZipSet}.
@@ -175,17 +197,17 @@ public final class ZipSet implements Serializable {
 	}
 
 	/**
-	 * Add the given file or directory to the ZipSet.
+	 * Add the given resource to the ZipSet.
 	 * 
-	 * @param entry The absolute entry path
-	 * @param file  The path to add
+	 * @param entry    The absolute entry path
+	 * @param resource The resource to add
 	 * @return {@code this}
 	 */
-	public ZipSet add(String entry, Path file) {
+	public ZipSet add(EntryPath entry, byte[] resource) {
 		Objects.requireNonNull(entry);
-		Objects.requireNonNull(file);
+		Objects.requireNonNull(resource);
 
-		return add(EntryPath.parse(entry), file);
+		return addEntry(entry, resource);
 	}
 
 	/**
@@ -200,6 +222,20 @@ public final class ZipSet implements Serializable {
 		Objects.requireNonNull(file);
 
 		return addEntry(entry, file);
+	}
+
+	/**
+	 * Add the given ZipSet to the ZipSet.
+	 * 
+	 * @param entry The absolute entry path
+	 * @param zip   The ZipSet to add
+	 * @return {@code this}
+	 */
+	public ZipSet add(EntryPath entry, ZipSet zip) {
+		Objects.requireNonNull(entry);
+		Objects.requireNonNull(zip);
+
+		return addEntry(entry, zip);
 	}
 
 	/**
@@ -231,55 +267,17 @@ public final class ZipSet implements Serializable {
 	}
 
 	/**
-	 * Add the given resource to the ZipSet.
-	 * 
-	 * @param entry    The absolute entry path
-	 * @param resource The resource to add
-	 * @return {@code this}
-	 */
-	public ZipSet add(EntryPath entry, byte[] resource) {
-		Objects.requireNonNull(entry);
-		Objects.requireNonNull(resource);
-
-		return addEntry(entry, resource);
-	}
-
-	/**
-	 * Add the given ZipSet to the ZipSet.
+	 * Add the given file or directory to the ZipSet.
 	 * 
 	 * @param entry The absolute entry path
-	 * @param zip   The ZipSet to add
+	 * @param file  The path to add
 	 * @return {@code this}
 	 */
-	public ZipSet add(EntryPath entry, ZipSet zip) {
+	public ZipSet add(String entry, Path file) {
 		Objects.requireNonNull(entry);
-		Objects.requireNonNull(zip);
+		Objects.requireNonNull(file);
 
-		return addEntry(entry, zip);
-	}
-
-	/**
-	 * Subtract the given entry from the ZipSet.
-	 * 
-	 * @param entry The absolute entry to remove
-	 * @return {@code this}
-	 */
-	public ZipSet sub(String entry) {
-		Objects.requireNonNull(entry);
-
-		return sub(EntryPath.parse(entry));
-	}
-
-	/**
-	 * Subtract the given entry from the ZipSet.
-	 * 
-	 * @param entry The absolute entry to remove
-	 * @return {@code this}
-	 */
-	public ZipSet sub(EntryPath entry) {
-		Objects.requireNonNull(entry);
-
-		return addEntry(entry, null);
+		return add(EntryPath.parse(entry), file);
 	}
 
 	/**
@@ -293,33 +291,14 @@ public final class ZipSet implements Serializable {
 		if (entry.isNested()) {
 			if (!content.containsKey(entry.getUpperPath()))
 				content.put(entry.getUpperPath(), new ZipSet());
+			if (content.get(entry.getUpperPath()) instanceof Path)
+				content.put(entry.getUpperPath(), new ZipSet((Path) content.get(entry.getUpperPath())));
 			((ZipSet) content.get(entry.getUpperPath())).addEntry(entry.toLowerPath(), o);
 		} else {
 			content.put(entry.getUpperPath(), o);
 		}
 
 		return this;
-	}
-
-	/**
-	 * Build a new ZipSet containing the intersection of {@code this} and the given
-	 * ZipSet.
-	 * 
-	 * @param zip The other ZipSet
-	 * @return A new ZipSet
-	 */
-	public ZipSet intersect(ZipSet zip) {
-		throw new RuntimeException("Not implemented");
-	}
-
-	/**
-	 * Build a new ZipSet containing the union of {@code this} and the given ZipSet.
-	 * 
-	 * @param zip The other ZipSet
-	 * @return A new ZipSet
-	 */
-	public ZipSet union(ZipSet zip) {
-		throw new RuntimeException("Not implemented");
 	}
 
 	/**
@@ -332,20 +311,6 @@ public final class ZipSet implements Serializable {
 		try (var out = new ByteArrayOutputStream()) {
 			build(out);
 			return out.toByteArray();
-		}
-	}
-
-	/**
-	 * Write the final zip to the given file.
-	 * 
-	 * @param output The file that will receive the zip
-	 * @throws IOException
-	 */
-	public void build(Path output) throws IOException {
-		Objects.requireNonNull(output);
-
-		try (var out = Files.newOutputStream(output)) {
-			build(out);
 		}
 	}
 
@@ -368,6 +333,20 @@ public final class ZipSet implements Serializable {
 
 		} finally {
 			zipOut.finish();
+		}
+	}
+
+	/**
+	 * Write the final zip to the given file.
+	 * 
+	 * @param output The file that will receive the zip
+	 * @throws IOException
+	 */
+	public void build(Path output) throws IOException {
+		Objects.requireNonNull(output);
+
+		try (var out = Files.newOutputStream(output)) {
+			build(out);
 		}
 	}
 
@@ -417,29 +396,53 @@ public final class ZipSet implements Serializable {
 	}
 
 	/**
+	 * Subtract the given entry from the ZipSet.
+	 * 
+	 * @param entry The absolute entry to remove
+	 * @return {@code this}
+	 */
+	public ZipSet sub(EntryPath entry) {
+		Objects.requireNonNull(entry);
+
+		return addEntry(entry, null);
+	}
+
+	/**
+	 * Subtract the given entry from the ZipSet.
+	 * 
+	 * @param entry The absolute entry to remove
+	 * @return {@code this}
+	 */
+	public ZipSet sub(String entry) {
+		Objects.requireNonNull(entry);
+
+		return sub(EntryPath.parse(entry));
+	}
+
+	/**
 	 * Write the given object to the given zip stream.
 	 * 
 	 * @param zip  The zip to receive the files
 	 * @param name The name of the object
-	 * @param path The object to write
+	 * @param o    The object to write
 	 * @throws IOException
 	 */
-	private void writeObject(ZipOutputStream zipOut, String name, Object o) throws IOException {
+	private void writeObject(ZipOutputStream zip, String name, Object o) throws IOException {
 		if (o instanceof byte[]) {
 			if (name.endsWith("/")) {
-				zipOut.putNextEntry(newDirectoryEntry(name));
-				zipOut.closeEntry();
+				zip.putNextEntry(newDirectoryEntry(name));
+				zip.closeEntry();
 			} else {
-				zipOut.putNextEntry(newFileEntry(name));
-				zipOut.write((byte[]) o);
-				zipOut.closeEntry();
+				zip.putNextEntry(newFileEntry(name));
+				zip.write((byte[]) o);
+				zip.closeEntry();
 			}
 		} else if (o instanceof ZipSet) {
-			zipOut.putNextEntry(newFileEntry(name));
-			((ZipSet) o).build(zipOut);
-			zipOut.closeEntry();
+			zip.putNextEntry(newFileEntry(name));
+			((ZipSet) o).build(zip);
+			zip.closeEntry();
 		} else if (o instanceof Path) {
-			writePath(zipOut, name, (Path) o);
+			writePath(zip, name, (Path) o);
 		}
 	}
 
@@ -463,29 +466,5 @@ public final class ZipSet implements Serializable {
 			Files.copy(path, zip);
 			zip.closeEntry();
 		}
-	}
-
-	/**
-	 * Build a new {@link ZipEntry} for a directory.
-	 * 
-	 * @param name The absolute directory path
-	 * @return A ZipEntry for the path
-	 */
-	private static ZipEntry newDirectoryEntry(String name) {
-		if (name.lastIndexOf('/') == name.length() - 1)
-			return new ZipEntry(name);
-		return new ZipEntry(name + "/");
-	}
-
-	/**
-	 * Build a new {@link ZipEntry} for a file.
-	 * 
-	 * @param name The absolute file path
-	 * @return A ZipEntry for the path
-	 */
-	private static ZipEntry newFileEntry(String name) {
-		if (name.lastIndexOf('/') == name.length() - 1)
-			return new ZipEntry(name.substring(0, name.length() - 1));
-		return new ZipEntry(name);
 	}
 }

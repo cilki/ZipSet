@@ -55,7 +55,7 @@ publishing {
 		mavenJava(MavenPublication) {
 			groupId = 'com.github.cilki'
 			artifactId = 'zipset'
-			version = '1.0.0'
+			version = '1.2.0'
 
 			from components.java
 			artifact sourcesJar
