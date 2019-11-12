@@ -17,6 +17,7 @@
  *****************************************************************************/
 package com.github.cilki.zipset;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -177,7 +179,7 @@ public final class ZipSet implements Serializable {
 	/**
 	 * An optional zip file that acts like the base of the ZipSet.
 	 */
-	private Path source;
+	private Supplier<InputStream> source;
 
 	/**
 	 * Build a new empty {@link ZipSet}.
@@ -191,9 +193,25 @@ public final class ZipSet implements Serializable {
 	 * 
 	 * @param zip A zip file
 	 */
+	public ZipSet(byte[] zip) {
+		this();
+		this.source = () -> new ByteArrayInputStream(zip);
+	}
+
+	/**
+	 * Build a new {@link ZipSet} using the given file as a base.
+	 * 
+	 * @param zip A zip file
+	 */
 	public ZipSet(Path zip) {
 		this();
-		this.source = Objects.requireNonNull(zip);
+		this.source = () -> {
+			try {
+				return Files.newInputStream(Objects.requireNonNull(zip));
+			} catch (IOException e) {
+				return null;
+			}
+		};
 	}
 
 	/**
@@ -328,7 +346,7 @@ public final class ZipSet implements Serializable {
 
 		try (var zipIn = new ZipInputStream(
 				// Use either the source file or an empty stream
-				source != null ? Files.newInputStream(source) : InputStream.nullInputStream())) {
+				source != null ? source.get() : InputStream.nullInputStream())) {
 			build(zipIn, zipOut);
 
 		} finally {
