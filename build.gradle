@@ -21,7 +21,7 @@ dependencies {
 	testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
 
 	// https://github.com/zeroturnaround/zt-zip
-	testImplementation 'org.zeroturnaround:zt-zip:1.13'
+	testImplementation 'org.zeroturnaround:zt-zip:1.14'
 
 	// https://github.com/qos-ch/slf4j
 	implementation 'org.slf4j:slf4j-api:1.7.28'
