@@ -18,7 +18,7 @@ repositories {
 }
 
 dependencies {
-	testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.5.2'
+	testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.6.2'
 
 	// https://github.com/zeroturnaround/zt-zip
 	testImplementation 'org.zeroturnaround:zt-zip:1.14'
