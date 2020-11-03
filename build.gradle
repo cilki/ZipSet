@@ -24,7 +24,7 @@ dependencies {
 	testImplementation 'org.zeroturnaround:zt-zip:1.14'
 
 	// https://github.com/qos-ch/slf4j
-	implementation 'org.slf4j:slf4j-api:1.7.28'
+	implementation 'org.slf4j:slf4j-api:1.7.30'
 }
 
 test {
